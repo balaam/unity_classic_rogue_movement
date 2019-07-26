@@ -70,6 +70,7 @@ public class ClassicRogue : MonoBehaviour
     const float ViewportRatio = (float)ViewportWidthPixels / (float)ViewportHeightPixels;
 
     private const int MaxCreatures = 150;
+    
 
     private Vector2Int[] TileNeighbourOffsets = new Vector2Int[]
     {
@@ -94,10 +95,11 @@ public class ClassicRogue : MonoBehaviour
     private char[] _viewport = new char[ViewWidthTiles * ViewHeightTiles];
     private Tile[] _worldTiles = new Tile[ViewWidthTiles * ViewHeightTiles];
     private Creature[] _creatureList;
-    private Vector2[] _asciiToUV = new Vector2[256];
+    private Vector4[] _asciiToUV = new Vector4[256];
     
     const float SecondsPerFrame = 0.5f;
     private float _elaspedTime = SecondsPerFrame;    
+    private int ShaderIdScaleTransform = -1;
     
     public static Vector2Int IndexToXY(int i, int w) => new Vector2Int(i % w, i / w);
     public static int XYToIndex(Vector2Int xy, int w) =>  (xy.y * w) + xy.x;
@@ -170,10 +172,14 @@ public class ClassicRogue : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        ShaderIdScaleTransform = Shader.PropertyToID("_MainTex_ST");
         // Store UV positions for ASCII glyphs
         for (int i = 0; i < _asciiToUV.Length; i++)
-            _asciiToUV[i] = ASCIICodeToUV((char)i);
-        
+        {
+            Vector2 uvPos = ASCIICodeToUV((char) i);
+            _asciiToUV[i] = new Vector4(TileWidthUV, TileHeightUV, uvPos.x, uvPos.y);
+        }
+
         // Setup the Camera
         _camera = Camera.main;
         _camera.transform.position = new Vector3(0,0, -1);
@@ -279,15 +285,12 @@ public class ClassicRogue : MonoBehaviour
         for (int i = 0; i < _creatureList.Length; i++)
             _viewport[XYToIndex(_creatureList[i].Position, ViewWidthTiles)] = _creatureList[i].Glyph;
         
-        // TileToASCII is not fast.
         for (int i = 0; i < _viewport.Length; i++)
         {
             Renderer renderer = _viewCache[i].Renderer;
             MaterialPropertyBlock mpb = _viewCache[i].MaterialPropertyBlock;
             renderer.GetPropertyBlock(mpb);
-            Vector2 offset = _asciiToUV[_viewport[i]];
-            Vector4 man = new Vector4(TileWidthUV, TileHeightUV, offset.x, offset.y);
-            mpb.SetVector("_MainTex_ST", man);
+            mpb.SetVector(ShaderIdScaleTransform, _asciiToUV[_viewport[i]]);
             renderer.SetPropertyBlock(mpb);
         }
     }
