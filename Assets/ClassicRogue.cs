@@ -229,6 +229,9 @@ public class ClassicRogue : MonoBehaviour
     
     void Update()
     {
+        if(Input.GetKeyDown(KeyCode.Escape))
+            Application.Quit();
+            
         // Only update every SecondsPerFrame
         _elaspedTime += Time.deltaTime;
         if (_elaspedTime < SecondsPerFrame)
