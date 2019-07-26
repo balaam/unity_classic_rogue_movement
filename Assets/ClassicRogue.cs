@@ -4,6 +4,40 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Profiling;
 
+public struct Coord : IEquatable<Coord>
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public bool Equals(Coord a) => X == a.X && Y == a.Y;
+    
+    public bool Equals(object a)
+    {
+        if (!(a is Coord)) return false;
+        return Equals((Coord)a);
+    }
+
+    public static bool operator==(Coord a, Coord b)
+    {
+        return a.X == b.X && a.Y == b.Y;
+    }
+
+    public static bool operator !=(Coord a, Coord b)
+    {
+        return !(a == b);
+    }
+
+    public static Coord operator +(Coord a, Coord b)
+    {
+        return new Coord(a.X + b.X, a.Y + b.Y);
+    }
+    
+    public Coord(int x, int y)
+    {
+        X = x;
+        Y = y;
+    }
+}
+
 public struct Tile
 {
     public enum eBlock
@@ -13,23 +47,21 @@ public struct Tile
         Entity
     }
 
-    public Vector2Int Position { get; set; }
+    public Coord Position { get; set; }
     public eBlock BlockData { get; set; }
     public bool IsBlocking => BlockData != eBlock.None; 
 
-    public Tile(Vector2Int pos)
+    public Tile(Coord pos)
     {
         Position = pos;
         BlockData = eBlock.None;
     }
 }
 
-
-
 public class Creature
 {
     public char Glyph { get; set; }
-    public Vector2Int Position { get; set; }
+    public Coord Position { get; set; }
     public int Speed { get; set; }
 }
 
@@ -82,16 +114,16 @@ public class ClassicRogue : MonoBehaviour
     private const int MaxCreatures = 150;
     
 
-    private Vector2Int[] TileNeighbourOffsets = new Vector2Int[]
+    private Coord[] TileNeighbourOffsets = new Coord[]
     {
-        new Vector2Int(-1, 1),
-        new Vector2Int(0, 1),
-        new Vector2Int(1, 1),
-        new Vector2Int(1, 0),
-        new Vector2Int(1, -1),
-        new Vector2Int(0, -1),
-        new Vector2Int(-1, -1),
-        new Vector2Int(-1, 0),
+        new Coord(-1, 1),
+        new Coord(0, 1),
+        new Coord(1, 1),
+        new Coord(1, 0),
+        new Coord(1, -1),
+        new Coord(0, -1),
+        new Coord(-1, -1),
+        new Coord(-1, 0),
     };
 
 
@@ -110,9 +142,10 @@ public class ClassicRogue : MonoBehaviour
     const float SecondsPerFrame = 0.5f;
     private float _elaspedTime = SecondsPerFrame;    
     private int ShaderIdScaleTransform = -1;
+    private Coord[] _validMoves;
     
-    public static Vector2Int IndexToXY(int i, int w) => new Vector2Int(i % w, i / w);
-    public static int XYToIndex(Vector2Int xy, int w) =>  (xy.y * w) + xy.x;
+    public static Coord IndexToXY(int i, int w) => new Coord(i % w, i / w);
+    public static int XYToIndex(Coord xy, int w) =>  (xy.Y * w) + xy.X;
     
 
     public static Vector2 ASCIICodeToUV(int asciiCode)
@@ -125,11 +158,11 @@ public class ClassicRogue : MonoBehaviour
 
         const float texOffsetU = texOffsetX / TextureWidthPixels;
         const float texOffsetV = texOffsetY / TextureHeightPixels;
-        Vector2Int charCoord = IndexToXY(asciiCode, charsPerLineInTexture);
+        Coord charCoord = IndexToXY(asciiCode, charsPerLineInTexture);
         
         return new Vector2(
-            texOffsetU + TileWidthUV * charCoord.x,
-            1.0f - (texOffsetV + TileHeightUV * charCoord.y));
+            texOffsetU + TileWidthUV * charCoord.X,
+            1.0f - (texOffsetV + TileHeightUV * charCoord.Y));
     }
     
     public char TileToASCII(Tile t)
@@ -143,13 +176,13 @@ public class ClassicRogue : MonoBehaviour
         return t.IsBlocking ? '#' : '.';
     }
 
-    public bool IsTilePosValid(Vector2Int pos)
+    public bool IsTilePosValid(Coord pos)
     {
         int index = XYToIndex(pos, ViewWidthTiles);
         return index >= 0 && index < _worldTiles.Length;
     }
 
-    public bool IsTileBlocked(Vector2Int position)
+    public bool IsTileBlocked(Coord position)
     {
         int index = XYToIndex(position, ViewWidthTiles);
         return _worldTiles[index].IsBlocking;
@@ -197,8 +230,8 @@ public class ClassicRogue : MonoBehaviour
             GameObject tile = GameObject.CreatePrimitive(PrimitiveType.Quad);
             tile.transform.parent = transform;
             tile.transform.localScale = new Vector3(TileWidthWS, TileHeightWS, 1);
-            Vector2Int viewXY = IndexToXY(i, ViewWidthTiles);
-            tile.transform.position = new Vector3(tileX + (viewXY.x * TileWidthWS), tileY - (viewXY.y * TileHeightWS));
+            Coord viewXY = IndexToXY(i, ViewWidthTiles);
+            tile.transform.position = new Vector3(tileX + (viewXY.X * TileWidthWS), tileY - (viewXY.Y * TileHeightWS));
             Renderer renderer = tile.GetComponent<Renderer>();
             renderer.sharedMaterial = MatASCII;
             _viewGO[i] = tile;
@@ -241,7 +274,12 @@ public class ClassicRogue : MonoBehaviour
             // Set block data on tile.
             _worldTiles[index].BlockData = Tile.eBlock.Entity;
         }
+        
+        // Create movement data
+        _validMoves  = new Coord[TileNeighbourOffsets.Length];
     }
+    
+    
     
     void Update()
     {
@@ -259,8 +297,6 @@ public class ClassicRogue : MonoBehaviour
         Profiler.BeginSample("creature_movement");
         
         Array.Sort(_creatureList, (x, y) => x.Speed.CompareTo(y.Speed));
-
-        Vector2Int[] validMoves = new Vector2Int[TileNeighbourOffsets.Length];
         
         // Do movements one by one
         for (int i = 0; i < _creatureList.Length; i++)
@@ -269,18 +305,18 @@ public class ClassicRogue : MonoBehaviour
             int validMoveFillAmount = 0;
             for (int j = 0; j < TileNeighbourOffsets.Length; j++)
             {
-                Vector2Int posToCheck = _creatureList[i].Position + TileNeighbourOffsets[j];
+                Coord posToCheck = _creatureList[i].Position + TileNeighbourOffsets[j];
                 if (IsTilePosValid(posToCheck) && !IsTileBlocked(posToCheck))
                 {
-                    validMoves[validMoveFillAmount] = posToCheck;
+                    _validMoves[validMoveFillAmount] = posToCheck;
                     validMoveFillAmount++;
                 }
             }
             // Choose one at random
             if (validMoveFillAmount > 0)
             {
-                Vector2Int prevPos = _creatureList[i].Position;
-                _creatureList[i].Position = validMoves[UnityEngine.Random.Range(0, validMoveFillAmount)];
+                Coord prevPos = _creatureList[i].Position;
+                _creatureList[i].Position = _validMoves[UnityEngine.Random.Range(0, validMoveFillAmount)];
                 _worldTiles[XYToIndex(prevPos, ViewWidthTiles)].BlockData = Tile.eBlock.None;
                 _worldTiles[XYToIndex(_creatureList[i].Position, ViewWidthTiles)].BlockData = Tile.eBlock.Entity;
             }
