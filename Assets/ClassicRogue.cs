@@ -6,17 +6,27 @@ using UnityEngine.Profiling;
 
 public struct Tile
 {
+    public enum eBlock
+    {
+        None = 0,
+        Wall,
+        Entity
+    }
+
     public Vector2Int Position { get; set; }
-    public bool IsBlocking { get; set; }
-    
+    public eBlock BlockData { get; set; }
+    public bool IsBlocking => BlockData != eBlock.None; 
+
     public Tile(Vector2Int pos)
     {
         Position = pos;
-        IsBlocking = false;
+        BlockData = eBlock.None;
     }
 }
 
-public struct Creature
+
+
+public class Creature
 {
     public char Glyph { get; set; }
     public Vector2Int Position { get; set; }
@@ -142,16 +152,7 @@ public class ClassicRogue : MonoBehaviour
     public bool IsTileBlocked(Vector2Int position)
     {
         int index = XYToIndex(position, ViewWidthTiles);
-        if (_worldTiles[index].IsBlocking)
-            return true;
-
-        foreach (Creature c in _creatureList)
-        {
-            if (c.Position == position)
-                return true;
-        }
-
-        return false;
+        return _worldTiles[index].IsBlocking;
     }
 
     void FitScreen()
@@ -216,8 +217,10 @@ public class ClassicRogue : MonoBehaviour
         for (int i = 0; i < _worldTiles.Length; i++)
         {
             bool blocking = (UnityEngine.Random.value > 0.8f);
-            _worldTiles[i].IsBlocking = blocking;
-            if(!blocking)
+            
+            if(blocking)
+                _worldTiles[i].BlockData = Tile.eBlock.Wall;
+            else
                 emptyTiles.Add(i);
         }
         
@@ -235,6 +238,8 @@ public class ClassicRogue : MonoBehaviour
                 Glyph = 'r',
                 Speed = Mathf.FloorToInt(UnityEngine.Random.value * 10)
             };
+            // Set block data on tile.
+            _worldTiles[index].BlockData = Tile.eBlock.Entity;
         }
     }
     
@@ -273,12 +278,17 @@ public class ClassicRogue : MonoBehaviour
             }
             // Choose one at random
             if (validMoveFillAmount > 0)
+            {
+                Vector2Int prevPos = _creatureList[i].Position;
                 _creatureList[i].Position = validMoves[UnityEngine.Random.Range(0, validMoveFillAmount)];
+                _worldTiles[XYToIndex(prevPos, ViewWidthTiles)].BlockData = Tile.eBlock.None;
+                _worldTiles[XYToIndex(_creatureList[i].Position, ViewWidthTiles)].BlockData = Tile.eBlock.Entity;
+            }
         }
         
         Profiler.EndSample();
         
-        // Update Visuals. 
+        // Update Visuals
         for (int i = 0; i < _viewport.Length; i++)
             _viewport[i] = _worldTiles[i].IsBlocking ? '#' : '.';
 
