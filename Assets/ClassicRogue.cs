@@ -68,7 +68,6 @@ public class Creature
 public struct ViewTileCachedComponents
 {
     public Renderer Renderer { get; set; }
-    public MaterialPropertyBlock MaterialPropertyBlock { get; set; }
 }
 
 public static class Extensions
@@ -112,6 +111,8 @@ public class ClassicRogue : MonoBehaviour
     const float ViewportRatio = (float)ViewportWidthPixels / (float)ViewportHeightPixels;
 
     private const int MaxCreatures = 150;
+    
+    public MaterialPropertyBlock MaterialPropertyBlock { get; set; }
     
 
     private Coord[] TileNeighbourOffsets = new Coord[]
@@ -207,6 +208,8 @@ public class ClassicRogue : MonoBehaviour
     void Start()
     {
         ShaderIdScaleTransform = Shader.PropertyToID("_MainTex_ST");
+        MaterialPropertyBlock = new MaterialPropertyBlock();
+        
         // Store UV positions for ASCII glyphs
         for (int i = 0; i < _asciiToUV.Length; i++)
         {
@@ -238,8 +241,7 @@ public class ClassicRogue : MonoBehaviour
             _worldTiles[i] = new Tile(viewXY);
             _viewCache[i] = new ViewTileCachedComponents
             {
-                Renderer = renderer, 
-                MaterialPropertyBlock = new MaterialPropertyBlock()
+                Renderer = renderer,
             };
         }
 
@@ -334,10 +336,10 @@ public class ClassicRogue : MonoBehaviour
         for (int i = 0; i < _viewport.Length; i++)
         {
             Renderer renderer = _viewCache[i].Renderer;
-            MaterialPropertyBlock mpb = _viewCache[i].MaterialPropertyBlock;
-            renderer.GetPropertyBlock(mpb);
-            mpb.SetVector(ShaderIdScaleTransform, _asciiToUV[_viewport[i]]);
-            renderer.SetPropertyBlock(mpb);
+            
+            renderer.GetPropertyBlock(MaterialPropertyBlock);
+            MaterialPropertyBlock.SetVector(ShaderIdScaleTransform, _asciiToUV[_viewport[i]]);
+            renderer.SetPropertyBlock(MaterialPropertyBlock);
         }
     }
 
