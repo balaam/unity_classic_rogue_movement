@@ -9,26 +9,16 @@ public struct Coord : IEquatable<Coord>
     public int X { get; set; }
     public int Y { get; set; }
     public bool Equals(Coord a) => X == a.X && Y == a.Y;
+    public override int GetHashCode() => X.GetHashCode() ^ (Y.GetHashCode() << 2);
     
-    public bool Equals(object a)
+    public static bool operator ==(Coord a, Coord b) => a.X == b.X && a.Y == b.Y;
+    public static bool operator !=(Coord a, Coord b) => !(a == b);
+    public static Coord operator +(Coord a, Coord b) => new Coord(a.X + b.X, a.Y + b.Y);
+    
+    public override bool Equals(object a)
     {
         if (!(a is Coord)) return false;
         return Equals((Coord)a);
-    }
-
-    public static bool operator==(Coord a, Coord b)
-    {
-        return a.X == b.X && a.Y == b.Y;
-    }
-
-    public static bool operator !=(Coord a, Coord b)
-    {
-        return !(a == b);
-    }
-
-    public static Coord operator +(Coord a, Coord b)
-    {
-        return new Coord(a.X + b.X, a.Y + b.Y);
     }
     
     public Coord(int x, int y)
@@ -111,8 +101,8 @@ public class ClassicRogue : MonoBehaviour
     const float ViewportRatio = (float)ViewportWidthPixels / (float)ViewportHeightPixels;
 
     private const int MaxCreatures = 150;
-    
-    public MaterialPropertyBlock MaterialPropertyBlock { get; set; }
+
+    private MaterialPropertyBlock _matPropBlock;
     
 
     private Coord[] TileNeighbourOffsets = new Coord[]
@@ -165,17 +155,6 @@ public class ClassicRogue : MonoBehaviour
             texOffsetU + TileWidthUV * charCoord.X,
             1.0f - (texOffsetV + TileHeightUV * charCoord.Y));
     }
-    
-    public char TileToASCII(Tile t)
-    {
-        foreach (Creature c in _creatureList)
-        {
-            if (c.Position == t.Position)
-                return c.Glyph;
-        }
-        
-        return t.IsBlocking ? '#' : '.';
-    }
 
     public bool IsTilePosValid(Coord pos)
     {
@@ -208,7 +187,7 @@ public class ClassicRogue : MonoBehaviour
     void Start()
     {
         ShaderIdScaleTransform = Shader.PropertyToID("_MainTex_ST");
-        MaterialPropertyBlock = new MaterialPropertyBlock();
+        _matPropBlock = new MaterialPropertyBlock();
         
         // Store UV positions for ASCII glyphs
         for (int i = 0; i < _asciiToUV.Length; i++)
@@ -280,9 +259,8 @@ public class ClassicRogue : MonoBehaviour
         // Create movement data
         _validMoves  = new Coord[TileNeighbourOffsets.Length];
     }
-    
-    
-    
+
+
     void Update()
     {
         if(Input.GetKeyDown(KeyCode.Escape))
@@ -337,9 +315,9 @@ public class ClassicRogue : MonoBehaviour
         {
             Renderer renderer = _viewCache[i].Renderer;
             
-            renderer.GetPropertyBlock(MaterialPropertyBlock);
-            MaterialPropertyBlock.SetVector(ShaderIdScaleTransform, _asciiToUV[_viewport[i]]);
-            renderer.SetPropertyBlock(MaterialPropertyBlock);
+            renderer.GetPropertyBlock(_matPropBlock);
+            _matPropBlock.SetVector(ShaderIdScaleTransform, _asciiToUV[_viewport[i]]);
+            renderer.SetPropertyBlock(_matPropBlock);
         }
     }
 

@@ -8,7 +8,7 @@ Movement is one of the first systems I want to look at. This project contains a 
 
 ## Features
 
-- < 300 lines of Code
+- ~300 lines of Code
 - Simple ASCII console in Unity
 - Resizable, fits to window
 - Simple enemy movement
